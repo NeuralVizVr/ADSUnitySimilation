@@ -119,7 +119,7 @@ public class CarController : MonoBehaviour
 
         motorTorqueSlider.onValueChanged.AddListener(OnMotorTorqueChanged);
         maxSteerAngleSlider.onValueChanged.AddListener(OnMaxSteerAngleChanged);
-        classificationFrequencySlider.onValueChanged.AddListener(OnClassificationFrequencyChanged);
+       
 
         // Initialize slider values (triggers listeners to update text)
         motorTorqueSlider.value = motorTorque;
@@ -132,6 +132,8 @@ public class CarController : MonoBehaviour
         transform.rotation = initialRotation;
         StopMovement();
     }
+    private float lastClassificationTime = 0f;
+
     void Update()
     {
         if (!isAutonomousMode)
@@ -139,27 +141,32 @@ public class CarController : MonoBehaviour
             HandleManualControls();
             return;
         }
-        // Adjust classification frequency dynamically based on time speed
-        AdjustClassificationFrequency();
-        // Run classification based on slider-defined frequency
-        frameCount++;
-        if (frameCount >= classificationFrequency)
+
+        AdjustClassificationFrequency(); // Update classification frequency
+
+        // Ensure classification frequency updates dynamically
+        float targetFrequency = Mathf.Max(1, classificationFrequency); // Avoid division by zero
+        float classificationInterval = 1f / targetFrequency; // Convert frequency to time interval
+
+        // Run classification every classificationInterval seconds
+        if (Time.time - lastClassificationTime >= classificationInterval)
         {
-            frameCount = 0;
+            lastClassificationTime = Time.time;
             ClassifyAndDrive();
         }
 
         // Measure real classification frequency (updates every 2 seconds)
-        classificationTimer += Time.unscaledDeltaTime;  // Uses real-time, unaffected by time scale
+        classificationTimer += Time.unscaledDeltaTime;
         if (classificationTimer >= measureInterval)
         {
             float realFrequency = classificationCountWindow / classificationTimer;
-            realFrequencyText.text = $"{realFrequency:0.00}/sec";
+            realFrequencyText.text = $"{realFrequency:0.00}";
 
             classificationTimer = 0f;
             classificationCountWindow = 0;
         }
     }
+
     private void AdjustClassificationFrequency()
     {
         float timeSpeed = Time.timeScale;
@@ -168,10 +175,10 @@ public class CarController : MonoBehaviour
         int baseFrequency = (int)classificationFrequencySlider.value;
 
         // Increase frequency proportionally to time speed
-        classificationFrequency = Mathf.Clamp((int)(baseFrequency / timeSpeed), 1, 120); // Limit to prevent excessive updates
+        classificationFrequency = Mathf.Clamp((int)(baseFrequency * timeSpeed), 1, 120); // Limit to prevent excessive updates
 
         // Update UI text
-        classificationFrequencyText.text = $"{classificationFrequency}";
+        classificationFrequencyText.text = $"{baseFrequency}";
     }
 
 
@@ -397,13 +404,7 @@ public class CarController : MonoBehaviour
         maxSteerAngleText.text = value.ToString("F2"); // Display with 2 decimal places
     }
 
-    private void OnClassificationFrequencyChanged(float value)
-    {
-        int inverted = (int)(classificationFrequencySlider.maxValue - value + 1);
-        classificationFrequency = inverted; // now a lower number means more frequent classification
-        classificationFrequencyText.text = value.ToString("F0");
-        AdjustClassificationFrequency();
-    }
+
 
     private void OnDestroy() => worker?.Dispose();
 }
